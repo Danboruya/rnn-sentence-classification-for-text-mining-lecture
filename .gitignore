@@ -1,0 +1,11 @@
+# Ignore __pycache__ directory
+__pycache__/
+
+# Ignore data directory and datafiles
+data/
+runs/
+.idea/
+/.DS_Store
+
+# Ignore the unused files
+data_controller_gr.py
