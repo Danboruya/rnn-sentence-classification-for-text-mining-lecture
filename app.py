@@ -72,11 +72,13 @@ def load_train_data():
     # data_set[0]/label[0]:Train, data_set[1]/label[1]:Test
     data_set, data_set_label = data_controller.data_divider(raw_train_input_data[0], raw_data_set.data_set_train_label)
     x_test, y_test = data_controller.data_shuffler(raw_test_input_data[0], raw_data_set.data_set_test_label)
+    x_raw_test = raw_data_set.all_test_data_set
 
     x_train = data_set[0]
     y_train = data_set_label[0]
     x_valid = data_set[1]
     y_valid = data_set_label[1]
+    # TODO: check the sentence length for test data
     sentence_length = raw_train_input_data[5]
     n_class = FLAGS.n_class
     vocab_processor = vocab_train_data[3]
@@ -85,7 +87,7 @@ def load_train_data():
 
     components = [x_train, y_train, x_valid, y_valid,
                   sentence_length, n_class, vocab_processor,
-                  x_test, y_test]
+                  x_test, y_test, x_raw_test]
     return components
 
 
@@ -94,8 +96,8 @@ def print_info(vocab_processor, y_train, y_valid):
     print("Vocabulary Size: {:d}".format(len(vocab_processor.vocabulary_)))
     print("Train/Valid split: {:d}/{:d}".format(len(y_train), len(y_valid)))
     print("Parameters:")
-    for _attribute, _value in sorted(FLAGS.__flags.items()):
-        print("{}={}".format(_attribute.upper(), _value))
+    for key in FLAGS.__flags.keys():
+        print('{}={}'.format(key, getattr(FLAGS, key)))
     print("===================")
 
 
@@ -265,14 +267,24 @@ def test():
     pass
 
 
-def main():
+def main(argv):
     """
     Main function for this program.
     Load train data -> train -> Load test data -> test
     """
     components = load_train_data()
-    out_dir = train(components[0], components[1], components[2],
-                    components[3], components[4], components[5], components[6])
+    x_train = components[0]
+    y_train = components[1]
+    x_valid = components[2]
+    y_valid = components[3]
+    x_test = components[7]
+    x_test_raw = components[9]
+    y_test = components[8]
+    sentence_length = components[4]
+    n_class = components[5]
+    vocab_processor = components[6]
+
+    out_dir = train(x_train, y_train, x_valid, y_valid, sentence_length, n_class, vocab_processor)
     # test_components = load_test_data(out_dir[0])
     # test(test_components[0], test_components[1], test_components[2], out_dir[0], out_dir[1],
     #     components[6], components[1], components[3])
@@ -280,4 +292,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    tf.app.run()
+    # main()

@@ -161,13 +161,13 @@ def data_divider(data_set, label_set):
     Argument data sets are shuffled by random seed 10.
     :param data_set: Target data set
     :param label_set: Target data Label list
-    :return: Array of train/test data set and train/test label
+    :return: Array of train/valid data set and train/test label
     """
     counter = 0
     train_data = []
-    test_data = []
+    valid_data = []
     train_label = []
-    test_label = []
+    valid_label = []
 
     # Shuffle operation
     np.random.seed(10)
@@ -180,7 +180,7 @@ def data_divider(data_set, label_set):
             train_data.append(sentence)
             counter += 1
         else:
-            test_data.append(sentence)
+            valid_data.append(sentence)
             counter += 1
     counter = 0
     for label in shuffled_label_set:
@@ -188,10 +188,10 @@ def data_divider(data_set, label_set):
             train_label.append(label)
             counter += 1
         else:
-            test_label.append(label)
+            valid_label.append(label)
             counter += 1
-    sample_data = [train_data, test_data]
-    sample_label = [train_label, test_label]
+    sample_data = [train_data, valid_data]
+    sample_label = [train_label, valid_label]
     return [sample_data, sample_label]
 
 
