@@ -11,7 +11,8 @@ class DataSet:
         self.negative_test_data = []
         self.all_train_data_set = []
         self.all_test_data_set = []
-        self.data_set_label = []
+        self.data_set_train_label = []
+        self.data_set_test_label = []
 
 
 def _string_cleaner(string):
@@ -35,43 +36,64 @@ def _string_cleaner(string):
     return string.strip().lower()
 
 
-def _load_train_data(positive_train_data_path, negative_train_data_path):
+def _load_data(positive_train_data_path, negative_train_data_path,
+               positive_test_data_file_path, negative_test_data_file_path):
     """
     Loading a data from data files.
-    :param positive_train_data_path: Positive data file path.
-    :param negative_train_data_path: Negative data file path.
+    :param positive_train_data_path: Positive train data file path.
+    :param negative_train_data_path: Negative train data file path.
+    :param positive_test_data_file_path: Positive test data file path.
+    :param negative_test_data_file_path: Negative test data file path.
     :return: Dataset class object
     """
     data_set = DataSet()
 
-    # Load files
+    # Load train files
     with open(positive_train_data_path, 'r') as raw_train_pos, \
             open(negative_train_data_path, 'r') as raw_train_neg:
         raw_train_pos.readline()
         raw_train_neg.readline()
-        raw_positive_sentences = [s.strip() for s in raw_train_pos]
-        raw_negative_sentences = [s.strip() for s in raw_train_neg]
+        raw_positive_train_sentences = [s.strip() for s in raw_train_pos]
+        raw_negative_train_sentences = [s.strip() for s in raw_train_neg]
+
+    # Load test files
+    with open(positive_test_data_file_path, 'r') as raw_test_pos, \
+            open(negative_test_data_file_path, 'r') as raw_test_neg:
+        raw_test_pos.readline()
+        raw_test_neg.readline()
+        raw_positive_test_sentences = [s.strip() for s in raw_test_pos]
+        raw_negative_test_sentences = [s.strip() for s in raw_test_neg]
 
     # Formatting data
-    data_set.positive_train_data = [_string_cleaner(sentence) for sentence in raw_positive_sentences]
-    data_set.negative_train_data = [_string_cleaner(sentence) for sentence in raw_negative_sentences]
+    data_set.positive_train_data = raw_positive_train_sentences
+    data_set.negative_train_data = raw_negative_train_sentences
+    data_set.positive_test_data = raw_positive_test_sentences
+    data_set.negative_test_data = raw_negative_test_sentences
     data_set.all_train_data_set = data_set.positive_train_data + data_set.negative_train_data
+    data_set.all_test_data_set = data_set.positive_test_data + data_set.negative_test_data
 
     positive_train_labels = [[0, 1] for _ in data_set.positive_train_data]
     negative_train_labels = [[1, 0] for _ in data_set.negative_train_data]
-    data_set.data_set_label = np.concatenate([positive_train_labels, negative_train_labels], 0)
+    positive_test_labels = [[0, 1] for _ in data_set.positive_test_data]
+    negative_test_labels = [[1, 0] for _ in data_set.negative_test_data]
+    data_set.data_set_train_label = np.concatenate([positive_train_labels, negative_train_labels], 0)
+    data_set.data_set_test_label = np.concatenate([positive_test_labels, negative_test_labels], 0)
 
     return data_set
 
 
-def load_train_data_file(pos_train_data_file_path, neg_train_data_file_path):
+def load_data_file(pos_train_data_file_path, neg_train_data_file_path,
+                   pos_test_data_file_path, neg_test_data_file_path):
     """
     Loading datafiles with file path
-    :param pos_train_data_file_path: Positive data files path
-    :param neg_train_data_file_path: Negative data files path
-    :return: Data set class object
+    :param pos_train_data_file_path: Positive train data files path
+    :param neg_train_data_file_path: Negative train data files path
+    :param neg_test_data_file_path: Positive test data file path
+    :param pos_test_data_file_path: Negative test data file path
+    :return: Dataset class object
     """
-    return _load_train_data(pos_train_data_file_path, neg_train_data_file_path)
+    return _load_data(pos_train_data_file_path, neg_train_data_file_path,
+                      pos_test_data_file_path, neg_test_data_file_path)
 
 
 def build_vocabulary(positive_data, negative_data, all_data_set):
@@ -114,6 +136,22 @@ def build_vocabulary(positive_data, negative_data, all_data_set):
     input_data = [x, x_pos, x_neg, x_pos_as_x, x_neg_as_x, data_set_max_sentence_length]
 
     return [vocab_data, input_data]
+
+
+def data_shuffler(data_set, label_set):
+    """
+    Generate a shuffled dataset
+    :param data_set: Target data set
+    :param label_set: Target data Label list
+    :return: Array of shuffled data set and label
+    """
+    # Shuffle operation
+    np.random.seed(10)
+    shuffled_index = np.random.permutation(len(data_set))
+    shuffled_data_set = data_set[shuffled_index]
+    shuffled_label_set = label_set[shuffled_index]
+
+    return [shuffled_data_set, shuffled_label_set]
 
 
 def data_divider(data_set, label_set):

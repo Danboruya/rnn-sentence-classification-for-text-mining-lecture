@@ -16,13 +16,13 @@ from model import Model
 flags = tf.flags
 
 # ==Data==
-flags.DEFINE_string("positive_train_data_path", "./data/tw-polaritydata/tw-train.pos",
+flags.DEFINE_string("positive_train_data_path", "./data/wt-polaritydata/wt-train.pos",
                     "File path for the positive train data.")
-flags.DEFINE_string("negative_train_data_path", "./data/tw-polaritydata/tw-train.neg",
+flags.DEFINE_string("negative_train_data_path", "./data/wt-polaritydata/wt-train.neg",
                     "File path for the negative train data.")
-flags.DEFINE_string("positive_test_data_path", "./data/tw-polaritydata/tw-test.pos",
+flags.DEFINE_string("positive_test_data_path", "./data/wt-polaritydata/wt-test.pos",
                     "File path for the positive test data.")
-flags.DEFINE_string("negative_test_data_path", "./data/tw-polaritydata/tw-test.neg",
+flags.DEFINE_string("negative_test_data_path", "./data/wt-polaritydata/wt-test.neg",
                     "File path for the negative test data.")
 
 # ==Hyper parameters==
@@ -57,36 +57,50 @@ def load_train_data():
     Loading the train data from data set
     :return: Training components
     """
-    # Data preparation for train and test
-    raw_data_set = data_controller.load_data_file(FLAGS.positive_train_data_path,
-                                                  FLAGS.negative_train_data_path,
-                                                  FLAGS.positive_test_data_path,
-                                                  FLAGS.negative_test_data_path)
-    vocab_train_data, raw_train_input_data = data_controller.build_vocabulary(raw_data_set.positive_train_data,
-                                                                              raw_data_set.negative_train_data,
-                                                                              raw_data_set.all_train_data_set)
-    vocab_test_data, raw_test_input_data = data_controller.build_vocabulary(raw_data_set.positive_test_data,
-                                                                            raw_data_set.negative_test_data,
-                                                                            raw_data_set.all_test_data_set)
-
-    # data_set[0]/label[0]:Train, data_set[1]/label[1]:Test
-    data_set, data_set_label = data_controller.data_divider(raw_train_input_data[0], raw_data_set.data_set_train_label)
-    x_test, y_test = data_controller.data_shuffler(raw_test_input_data[0], raw_data_set.data_set_test_label)
+    # Data preparation for train data
+    raw_data_set = data_controller.load_train_data_file(FLAGS.positive_train_data_file, FLAGS.negative_train_data_file)
+    vocab_data, raw_input_data = data_controller_gr.build_vocabulary(raw_data_set.positive_train_data,
+                                                                     raw_data_set.negative_train_data,
+                                                                     raw_data_set.all_train_data_set)
+    # data_set/label[0]:Train, data_set/label[1]:Test
+    data_set, data_set_label = data_controller_gr.data_divider(raw_input_data[0], raw_data_set.data_set_label)
 
     x_train = data_set[0]
     y_train = data_set_label[0]
     x_valid = data_set[1]
     y_valid = data_set_label[1]
-    sentence_length = raw_train_input_data[5]
+    sentence_length = raw_input_data[5]
     n_class = FLAGS.n_class
-    vocab_processor = vocab_train_data[3]
+    vocab_processor = vocab_data[3]
 
     print_info(vocab_processor, y_train, y_valid)
 
-    components = [x_train, y_train, x_valid, y_valid,
-                  sentence_length, n_class, vocab_processor,
-                  x_test, y_test]
+    components = [x_train, y_train, x_valid, y_valid, sentence_length, n_class, vocab_processor]
     return components
+
+
+def load_test_data(out_dir):
+    """
+    Load data for test
+    :param out_dir: Output directory
+    :return: Test components
+    """
+    print("===================")
+    print("Evaluating process")
+    # Test data. Test label is; 0:Negative, 1:Positive
+    x_raw = ["a masterpiece four years in the making",
+             "everything is off.",
+             "I agree with you.",
+             "That's to bad",
+             "I succeeded in uninstalling"]
+    y_test = [1, 0, 1, 0, 1]
+    vocab_path = os.path.join(out_dir, "vocab")
+    print("Vocab_path" + vocab_path)
+    print("Output dir" + out_dir)
+    test_vocab_processor = learn.preprocessing.VocabularyProcessor.restore(vocab_path)
+    x_test = np.array(list(test_vocab_processor.transform(x_raw)))
+    test_components = [x_test, y_test, x_raw]
+    return test_components
 
 
 def print_info(vocab_processor, y_train, y_valid):
@@ -101,15 +115,15 @@ def print_info(vocab_processor, y_train, y_valid):
 
 def train(x_train, y_train, x_valid, y_valid, sentence_length, n_class, vocab_processor):
     """
-    Training the model
-    :param x_train: Input data for training step
-    :param y_train: Label data for training step
-    :param x_valid: Input data for validation step
-    :param y_valid: Label data for validation step
-    :param sentence_length: Max sentence length
-    :param n_class: The number of classification category
-    :param vocab_processor: Object of vocabulary processor
-    :return: Output directory path of result of training
+    Train process.
+    :param x_train: Input data for training
+    :param y_train: Label data for training
+    :param x_valid: Input data for validating
+    :param y_valid: Label data for validating
+    :param sentence_length: Sentence length of input data
+    :param n_class: The number of classifier
+    :param vocab_processor: Vocabulary processor
+    :return:
     """
     with tf.Graph().as_default():
         session_config = tf.ConfigProto(allow_soft_placement=FLAGS.allow_soft_placement,
@@ -137,7 +151,7 @@ def train(x_train, y_train, x_valid, y_valid, sentence_length, n_class, vocab_pr
             print("Optimizer has been set")
             grads_and_vars = optimizer.compute_gradients(net.loss)
             train_optimizer = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
-            print("Complected training procedure settings")
+            print("Complected training procedure set")
 
             # Define summaries settings for TensorBoard
             gradient_summaries = []
@@ -170,7 +184,7 @@ def train(x_train, y_train, x_valid, y_valid, sentence_length, n_class, vocab_pr
             validate_summary_op = tf.summary.merge([loss_summary, accuracy_summary])
             validate_summary_dir = os.path.join(output_directory, "summaries", "validate")
             validate_summary_writer = tf.summary.FileWriter(validate_summary_dir, sess.graph)
-            print("Validation summary has been set")
+            print("Test summary has been set")
 
             # Checkpoint directory. Tensorflow assumes this directory already exists so we need to create it
             checkpoint_dir = os.path.abspath(os.path.join(output_directory, "checkpoints"))
@@ -185,7 +199,7 @@ def train(x_train, y_train, x_valid, y_valid, sentence_length, n_class, vocab_pr
             vocab_processor.save(os.path.join(output_directory, "vocab"))
             print("Vocabulary has been saved")
 
-            # Initialize all variables for TensorFlow
+            # Initialize all variables for tensorflow
             sess.run(tf.global_variables_initializer())
             print("Boot Session")
 
@@ -230,6 +244,14 @@ def train(x_train, y_train, x_valid, y_valid, sentence_length, n_class, vocab_pr
                 if writer:
                     writer.add_summary(summaries, step)
 
+            # Save embedding data
+            # config = projector.ProjectorConfig()
+            # embedding = config.embeddings.add()
+            # embedding.tensor_name = net.embeddings.name
+            # embedding.metadata_path = os.path.join(output_directory, 'metadata.tsv')
+            # embedding_summary_writer = tf.summary.FileWriter(output_directory)
+            # projector.visualize_embeddings(embedding_summary_writer, config)
+
             # Training loop
             x_train = np.array(x_train)
             y_train = np.array(y_train)
@@ -261,8 +283,59 @@ def train(x_train, y_train, x_valid, y_valid, sentence_length, n_class, vocab_pr
             return output_directories
 
 
-def test():
-    pass
+def test(x_test, y_test, x_raw, out_dir, check_dir, vocab_processor, y_train, y_valid):
+    """
+    Test process
+    :param x_test: Input data for testing
+    :param y_test: Label data for testing
+    :param x_raw: Original sentence of test data
+    :param out_dir: Output directory path
+    :param check_dir: Check point directory path
+    """
+    output_dir_path = out_dir
+    checkpoint_file = tf.train.latest_checkpoint(check_dir)
+    print("Checkpoint path: " + check_dir)
+    graph = tf.Graph()
+    print("Evaluate model")
+    with graph.as_default():
+        session_conf = tf.ConfigProto(
+            allow_soft_placement=FLAGS.allow_soft_placement,
+            log_device_placement=FLAGS.log_device_placement)
+        sess = tf.Session(config=session_conf)
+        with sess.as_default():
+            # Restore the model
+            saver = tf.train.import_meta_graph("{}.meta".format(checkpoint_file))
+            saver.restore(sess, checkpoint_file)
+            input_x = graph.get_operation_by_name("input_x").outputs[0]
+            dropout_keep_prob = graph.get_operation_by_name("keep_prob").outputs[0]
+            predictions = graph.get_operation_by_name("Output_layer/predictions").outputs[0]
+            all_predictions = []
+
+            # Classification process
+            test_data = data_controller_gr.test_data_provider(x_test, FLAGS.batch_size)
+            for sentence in test_data:
+                sentence_predictions = sess.run(predictions, {input_x: sentence, dropout_keep_prob: 1.0})
+                all_predictions = np.concatenate([all_predictions, sentence_predictions])
+    if y_test is not None:
+        # correct_predictions = float(sum(all_predictions == y_test))
+        print("Total number of test data: {}".format(len(y_test)))
+        # print("Accuracy: {:g}".format(correct_predictions / float(len(y_test))))
+
+    # Save the evaluation to a csv
+    predictions_human_readable = np.column_stack((np.array(x_raw), all_predictions))
+    csv_out_path = os.path.join(output_dir_path, "prediction.csv")
+    for idx in range(len(predictions_human_readable)):
+        print("Classification : " + str(predictions_human_readable[idx]) + ", Correct Label: " + str(y_test[idx]))
+    print("Saving evaluation to {0}".format(csv_out_path))
+    with open(csv_out_path, "w+") as f:
+        csv.writer(f).writerows(predictions_human_readable)
+    spec_out_path = os.path.join(output_dir_path, "spec.txt")
+    with open(spec_out_path, "w+") as f:
+        f.write("Vocabulary Size: {:d}".format(len(vocab_processor.vocabulary_)) + "\n")
+        f.write("Train/Valid split: {:d}/{:d}".format(len(y_train), len(y_valid)) + "\n")
+        f.write("Parameters:")
+        for _attribute, _value in sorted(FLAGS.__flags.items()):
+            f.write("{}={}".format(_attribute.upper(), _value) + "\n")
 
 
 def main():
@@ -273,10 +346,10 @@ def main():
     components = load_train_data()
     out_dir = train(components[0], components[1], components[2],
                     components[3], components[4], components[5], components[6])
-    # test_components = load_test_data(out_dir[0])
-    # test(test_components[0], test_components[1], test_components[2], out_dir[0], out_dir[1],
-    #     components[6], components[1], components[3])
-    # print_info(components[6], components[1], components[3])
+    test_components = load_test_data(out_dir[0])
+    test(test_components[0], test_components[1], test_components[2], out_dir[0], out_dir[1],
+         components[6], components[1], components[3])
+    print_info(components[6], components[1], components[3])
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 import sys
 import tensorflow as tf
-from tensorflow.contrib import rnn
+from tensorflow.contrib import rnn, metrics
 
 
 class Model(object):
@@ -138,4 +138,26 @@ class Model(object):
             correct_predictions = tf.equal(self.predictions, tf.argmax(self.input_y, 1))
             self.accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"), name="accuracy")
         print("Accuracy: Done")
+
+        # Precision
+        with tf.name_scope("Precision"):
+            self.precision = tf.metrics.precision(self.predictions, tf.argmax(self.input_y, 1), name="precision")
+        print("Precision: Done")
+
+        # Recall
+        with tf.name_scope("Recall"):
+            self.recall = tf.metrics.recall(self.predictions, tf.argmax(self.input_y, 1))
+        print("Recall: Done")
+
+        # Confusion matrix
+        with tf.name_scope("Confusion_matrix"):
+            self.confusion_matrix = tf.confusion_matrix(tf.argmax(self.input_y, 1), self.precision,
+                                                        num_classes=n_class, name="confusion_matrix")
+        print("Confusion matrix: Done")
+
+        # F1 score
+        with tf.name_scope("f1_score"):
+            self.f1_score = metrics.f1_score(tf.argmax(self.input_y, 1), self.predictions)
+        print("F1 score: Done")
+
         print("==Network construction has been finished==")

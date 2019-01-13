@@ -12,7 +12,7 @@ This project require following environments
 |Environment|Version|
 |:---------:|:-----:|
 | Python | 3.6.x |
-| TensorFlow | 1.4.x |
+| TensorFlow | 1.10.x |
 | numpy | 1.15.x |
 
 ## Dataset
