@@ -28,6 +28,7 @@ def parse(sentences):
     :return: result of parse
     """
     tagger = MeCab.Tagger("-d /usr/local/lib/mecab/dic/mecab-ipadic-neologd -Owakati")
+    # tagger = MeCab.Tagger("-d /usr/lib/x86_64-linux-gnu/mecab/dic/mecab-ipadic-neologd -Owakati")
     data = []
     for data_ in sentences:
         parsed_sentence = tagger.parse(data_)
