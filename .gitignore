@@ -9,3 +9,4 @@ runs/
 
 # Ignore the unused files
 data_controller_gr.py
+app_gr.py
