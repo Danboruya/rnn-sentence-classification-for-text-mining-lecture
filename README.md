@@ -14,6 +14,7 @@ This project require following environments
 | Python | 3.6.x |
 | TensorFlow | 1.4.x - 1.10.x |
 | numpy | 1.15.x |
+| scikit-learn | 0.19.x or later |
 
 ## Dataset
 This project use customised dataset from following site for train and test the model.  
