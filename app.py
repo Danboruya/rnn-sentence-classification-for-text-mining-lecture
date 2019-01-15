@@ -1,12 +1,10 @@
 import tensorflow as tf
-from tensorflow.contrib import learn
 from sklearn import metrics
 import numpy as np
 import os
 import time
 import csv
 import datetime
-import data_controller_gr
 import data_controller
 from model import Model
 
@@ -301,7 +299,7 @@ def test(x_test, y_test, x_raw_test, out_dir, check_dir, vocab_processor, y_trai
             all_probabilities = None
 
             # Test process
-            test_data = data_controller_gr.test_data_provider(x_test, FLAGS.batch_size)
+            test_data = data_controller.test_data_provider(x_test, FLAGS.batch_size)
             for sentence in test_data:
                 sentence_predictions, sentence_scores = sess.run([predictions, scores],
                                                                  {input_x: sentence, dropout_keep_prob: 1.0})

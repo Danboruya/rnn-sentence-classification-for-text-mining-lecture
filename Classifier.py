@@ -5,7 +5,7 @@ import csv
 import os
 import sys
 import time
-import data_controller_gr
+import data_controller
 from decimal import Decimal
 
 # ==================
@@ -88,7 +88,7 @@ def test(x_test, y_test, x_raw, out_dir, mode):
             # Test process
             # print("===================")
             # print("Test model")
-            test_data = data_controller_gr.test_data_provider(x_test, FLAGS.batch_size)
+            test_data = data_controller.test_data_provider(x_test, FLAGS.batch_size)
             for sentence in test_data:
                 sentence_predictions = sess.run(predictions, {input_x: sentence, dropout_keep_prob: 1.0})
                 # print(sentence_predictions)
