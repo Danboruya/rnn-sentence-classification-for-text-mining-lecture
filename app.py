@@ -1,5 +1,6 @@
 import tensorflow as tf
 from tensorflow.contrib import learn
+from sklearn import metrics
 import numpy as np
 import os
 import time
@@ -62,28 +63,32 @@ def load_train_data():
                                                   FLAGS.negative_train_data_path,
                                                   FLAGS.positive_test_data_path,
                                                   FLAGS.negative_test_data_path)
+    sentence_length = data_controller.get_sentence_length(raw_data_set.all_train_data_set,
+                                                          raw_data_set.all_test_data_set)
     vocab_train_data, raw_train_input_data = data_controller.build_vocabulary(raw_data_set.positive_train_data,
                                                                               raw_data_set.negative_train_data,
-                                                                              raw_data_set.all_train_data_set)
+                                                                              raw_data_set.all_train_data_set,
+                                                                              sentence_length)
     vocab_test_data, raw_test_input_data = data_controller.build_vocabulary(raw_data_set.positive_test_data,
                                                                             raw_data_set.negative_test_data,
-                                                                            raw_data_set.all_test_data_set)
+                                                                            raw_data_set.all_test_data_set,
+                                                                            sentence_length)
 
     # data_set[0]/label[0]:Train, data_set[1]/label[1]:Test
     data_set, data_set_label = data_controller.data_divider(raw_train_input_data[0], raw_data_set.data_set_train_label)
-    x_test, y_test = data_controller.data_shuffler(raw_test_input_data[0], raw_data_set.data_set_test_label)
-    x_raw_test = raw_data_set.all_test_data_set
+    x_test, y_test, x_raw_test = data_controller.data_shuffler(raw_test_input_data[0], raw_data_set.data_set_test_label,
+                                                               raw_data_set.all_test_data_set)
+    # x_raw_test = raw_data_set.all_test_data_set
 
     x_train = data_set[0]
     y_train = data_set_label[0]
     x_valid = data_set[1]
     y_valid = data_set_label[1]
-    # TODO: check the sentence length for test data
     sentence_length = raw_train_input_data[5]
     n_class = FLAGS.n_class
     vocab_processor = vocab_train_data[3]
 
-    print_info(vocab_processor, y_train, y_valid)
+    print_info(vocab_processor, y_train, y_valid, y_test)
 
     components = [x_train, y_train, x_valid, y_valid,
                   sentence_length, n_class, vocab_processor,
@@ -91,10 +96,11 @@ def load_train_data():
     return components
 
 
-def print_info(vocab_processor, y_train, y_valid):
+def print_info(vocab_processor, y_train, y_valid, y_test):
     print("===================")
     print("Vocabulary Size: {:d}".format(len(vocab_processor.vocabulary_)))
     print("Train/Valid split: {:d}/{:d}".format(len(y_train), len(y_valid)))
+    print("Test: {:d}".format(len(y_test)))
     print("Parameters:")
     for key in FLAGS.__flags.keys():
         print('{}={}'.format(key, getattr(FLAGS, key)))
@@ -207,7 +213,6 @@ def train(x_train, y_train, x_valid, y_valid, sentence_length, n_class, vocab_pr
                     [train_optimizer, global_step, train_mini_batch_summary_op, net.loss,
                      net.accuracy, net.output],
                     feed_dict)
-                # time_str = datetime.datetime.now().isoformat()
                 train_mini_batch_summary_writer.add_summary(summaries, step)
                 print("step {}, epoch {}, loss {:g}, accuracy {:g}".format(step, current_epoch, loss, accuracy))
 
@@ -263,8 +268,94 @@ def train(x_train, y_train, x_valid, y_valid, sentence_length, n_class, vocab_pr
             return output_directories
 
 
-def test():
-    pass
+def test(x_test, y_test, x_raw_test, out_dir, check_dir, vocab_processor, y_train, y_valid):
+    """
+    Test the model using non-trained test data.
+    :param x_test: Input data for testing steps
+    :param y_test: Label data for testing steps
+    :param x_raw_test: Raw sentence like human readable for test data
+    :param out_dir: Output directory path of saved model
+    :param check_dir: Checkpoint directory path of saved model
+    :param vocab_processor: Vocabulary object in training data
+    :param y_train: Input data of training steps for showing the information
+    :param y_valid: Label data of training steps for showing the information
+    """
+    output_dir_path = out_dir
+    checkpoint_file = tf.train.latest_checkpoint(check_dir)
+    print("Checkpoint path: " + check_dir)
+    graph = tf.Graph()
+    print("Evaluate model")
+    with graph.as_default():
+        session_conf = tf.ConfigProto(allow_soft_placement=FLAGS.allow_soft_placement,
+                                      log_device_placement=FLAGS.log_device_placement)
+        sess = tf.Session(config=session_conf)
+        with sess.as_default():
+            # Restore the model
+            saver = tf.train.import_meta_graph("{}.meta".format(checkpoint_file))
+            saver.restore(sess, checkpoint_file)
+            input_x = graph.get_operation_by_name("input_x").outputs[0]
+            dropout_keep_prob = graph.get_operation_by_name("keep_prob").outputs[0]
+            predictions = graph.get_operation_by_name("Output_layer/predictions").outputs[0]
+            scores = graph.get_operation_by_name("Output_layer/scores").outputs[0]
+            all_predictions = []
+            all_probabilities = None
+
+            # Test process
+            test_data = data_controller_gr.test_data_provider(x_test, FLAGS.batch_size)
+            for sentence in test_data:
+                sentence_predictions, sentence_scores = sess.run([predictions, scores],
+                                                                 {input_x: sentence, dropout_keep_prob: 1.0})
+                all_predictions = np.concatenate([all_predictions, sentence_predictions])
+                probabilities = data_controller.softmax(sentence_scores)
+                if all_probabilities is not None:
+                    all_probabilities = np.concatenate([all_probabilities, probabilities])
+                else:
+                    all_probabilities = probabilities
+
+    if y_test is not None:
+        print("Total number of test data: {}".format(len(y_test)))
+        print("Accuracy: {:g}".format(float(sum(all_predictions == y_test)) / float(len(y_test))))
+
+    # Save the evaluation to a csv
+    predictions_human_readable = np.column_stack((np.array(x_raw_test), all_predictions))
+    csv_out_path = os.path.join(output_dir_path, "prediction.csv")
+    print("Saving evaluation to {0}".format(csv_out_path))
+    with open(csv_out_path, "w+") as f:
+        csv.writer(f).writerows(predictions_human_readable)
+    spec_out_path = os.path.join(output_dir_path, "spec.txt")
+    result_out_path = os.path.join(output_dir_path, "eval_out.txt")
+    test_result_out_path = os.path.join(output_dir_path, "result_out.txt")
+
+    # File out
+    with open(spec_out_path, "w+") as f:
+        f.write("Vocabulary Size: {:d}".format(len(vocab_processor.vocabulary_)) + "\n")
+        f.write("Train/Valid split: {:d}/{:d}".format(len(y_train), len(y_valid)) + "\n")
+        f.write("Total number of test data: {}".format(len(y_test)) + "\n")
+        f.write("============================" + "\n")
+        f.write("Parameters:" + "\n")
+        for key in FLAGS.__flags.keys():
+            f.write('{}={}'.format(key, getattr(FLAGS, key)) + "\n")
+
+    with open(result_out_path, "w+") as f:
+        f.write("============================" + "\n")
+        f.write("Classification Result" + "\n")
+        f.write(str(metrics.classification_report(y_test, all_predictions,
+                                                  target_names=["Positive sentence", "Negative sentence"])) + "\n")
+        f.write("============================" + "\n")
+        f.write("confusion matrix:" + "\n")
+        f.write(str(metrics.confusion_matrix(y_test, all_predictions)) + "\n")
+        f.write("============================" + "\n")
+        if y_test is not None:
+            f.write("Total number of test data: {}".format(len(y_test)) + "\n")
+            f.write("Accuracy: {:g}".format(float(sum(all_predictions == y_test)) / float(len(y_test))) + "\n")
+
+    with open(test_result_out_path, "w+") as f:
+        for idx in range(len(predictions_human_readable)):
+            if y_test[idx] == 0:
+                label = "{}:Positive".format(y_test[idx])
+            else:
+                label = "{}:Negative".format(y_test[idx])
+            f.write("Classification : " + str(predictions_human_readable[idx]) + ", Correct Label: " + label + "\n")
 
 
 def main(argv):
@@ -283,14 +374,11 @@ def main(argv):
     sentence_length = components[4]
     n_class = components[5]
     vocab_processor = components[6]
-
     out_dir = train(x_train, y_train, x_valid, y_valid, sentence_length, n_class, vocab_processor)
-    # test_components = load_test_data(out_dir[0])
-    # test(test_components[0], test_components[1], test_components[2], out_dir[0], out_dir[1],
-    #     components[6], components[1], components[3])
-    # print_info(components[6], components[1], components[3])
+    test(x_test, y_test, x_test_raw, out_dir[0], out_dir[1], vocab_processor, y_train, y_valid)
+    print_info(vocab_processor, y_train, y_valid, y_test)
+    print("App has been done")
 
 
 if __name__ == "__main__":
     tf.app.run()
-    # main()

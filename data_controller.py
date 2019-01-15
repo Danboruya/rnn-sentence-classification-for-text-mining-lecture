@@ -51,16 +51,16 @@ def _load_data(positive_train_data_path, negative_train_data_path,
     # Load train files
     with open(positive_train_data_path, 'r') as raw_train_pos, \
             open(negative_train_data_path, 'r') as raw_train_neg:
-        raw_train_pos.readline()
-        raw_train_neg.readline()
+        raw_train_pos = list(raw_train_pos.readlines())
+        raw_train_neg = list(raw_train_neg.readlines())
         raw_positive_train_sentences = [s.strip() for s in raw_train_pos]
         raw_negative_train_sentences = [s.strip() for s in raw_train_neg]
 
     # Load test files
     with open(positive_test_data_file_path, 'r') as raw_test_pos, \
             open(negative_test_data_file_path, 'r') as raw_test_neg:
-        raw_test_pos.readline()
-        raw_test_neg.readline()
+        raw_test_pos = list(raw_test_pos.readlines())
+        raw_test_neg = list(raw_test_neg.readlines())
         raw_positive_test_sentences = [s.strip() for s in raw_test_pos]
         raw_negative_test_sentences = [s.strip() for s in raw_test_neg]
 
@@ -74,8 +74,8 @@ def _load_data(positive_train_data_path, negative_train_data_path,
 
     positive_train_labels = [[0, 1] for _ in data_set.positive_train_data]
     negative_train_labels = [[1, 0] for _ in data_set.negative_train_data]
-    positive_test_labels = [[0, 1] for _ in data_set.positive_test_data]
-    negative_test_labels = [[1, 0] for _ in data_set.negative_test_data]
+    positive_test_labels = [1 for _ in data_set.positive_test_data]
+    negative_test_labels = [0 for _ in data_set.negative_test_data]
     data_set.data_set_train_label = np.concatenate([positive_train_labels, negative_train_labels], 0)
     data_set.data_set_test_label = np.concatenate([positive_test_labels, negative_test_labels], 0)
 
@@ -96,17 +96,32 @@ def load_data_file(pos_train_data_file_path, neg_train_data_file_path,
                       pos_test_data_file_path, neg_test_data_file_path)
 
 
-def build_vocabulary(positive_data, negative_data, all_data_set):
+def get_sentence_length(train_data_set, test_data_set):
+    """
+    Acquire the longer of the maximum sentence lengths of training data and test data.
+    :param train_data_set: Raw sentence for training data
+    :param test_data_set: Raw sentence for testing data
+    :return: Maximum sentence length
+    """
+    if max([len(sentence.split(" ")) for sentence in train_data_set]) > max([len(sentence.split(" ")) for sentence in test_data_set]):
+        sentence_length = max([len(sentence.split(" ")) for sentence in train_data_set])
+    else:
+        sentence_length = max([len(sentence.split(" ")) for sentence in test_data_set])
+    return sentence_length
+
+
+def build_vocabulary(positive_data, negative_data, all_data_set, sentence_length):
     """
     Build vocabulary data
     :param positive_data: Positive sentence data
     :param negative_data: Negative sentence data
     :param all_data_set: All sentence data
+    :param sentence_length: Length of target sentence
     :return: Vocabulary data and input data
     """
     positive_max_sentence_length = max([len(sentence.split(" ")) for sentence in positive_data])
     negative_max_sentence_length = max([len(sentence.split(" ")) for sentence in negative_data])
-    data_set_max_sentence_length = max([len(sentence.split(" ")) for sentence in all_data_set])
+    data_set_max_sentence_length = sentence_length
 
     # Build vocabulary from all data
     vocab_processor = learn.preprocessing.VocabularyProcessor(data_set_max_sentence_length)
@@ -138,20 +153,25 @@ def build_vocabulary(positive_data, negative_data, all_data_set):
     return [vocab_data, input_data]
 
 
-def data_shuffler(data_set, label_set):
+def data_shuffler(data_set, label_set, raw):
     """
     Generate a shuffled dataset
-    :param data_set: Target data set
+    :param data_set: Target dataset
     :param label_set: Target data Label list
-    :return: Array of shuffled data set and label
+    :param raw: Raw sentence
+    :return: Array of shuffled dataset, label and raw sentence
     """
     # Shuffle operation
     np.random.seed(10)
     shuffled_index = np.random.permutation(len(data_set))
     shuffled_data_set = data_set[shuffled_index]
     shuffled_label_set = label_set[shuffled_index]
+    shuffled_raw_set = []
+    for s, i in zip(raw, range(len(raw))):
+        shuffled_raw_set.append(raw[shuffled_index[i]])
+    # shuffled_raw_set = raw[shuffled_index]
 
-    return [shuffled_data_set, shuffled_label_set]
+    return [shuffled_data_set, shuffled_label_set, shuffled_raw_set]
 
 
 def data_divider(data_set, label_set):
@@ -208,3 +228,16 @@ def test_data_provider(data, batch_size):
         end_index = min((idx + 1) * batch_size, data_size)
         test_data = data[start_index:end_index]
         yield test_data
+
+
+def softmax(x):
+    """
+    Calculate softmax value
+    :param x: sets of score
+    :return: Result of softmax function
+    """
+    if x.ndim == 1:
+        x = x.reshape((1, -1))
+    max_x = np.max(x, axis=1).reshape((-1, 1))
+    exp_x = np.exp(x - max_x)
+    return exp_x / np.sum(exp_x, axis=1).reshape((-1, 1))

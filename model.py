@@ -1,6 +1,6 @@
 import sys
 import tensorflow as tf
-from tensorflow.contrib import rnn, metrics
+from tensorflow.contrib import rnn
 
 
 class Model(object):
@@ -29,7 +29,7 @@ class Model(object):
         self.input_y = tf.placeholder(tf.float32, [None, n_class], name="input_y")
         self.dropout_keep_prob = tf.placeholder(tf.float32, shape=None, name="keep_prob")
         l2_loss = tf.constant(0.0)
-        l2_reg_lambda = 0.0
+        # l2_reg_lambda = 0.0
 
         # Word embedding layer as input layer
         with tf.name_scope("Input_layer"):
@@ -105,7 +105,6 @@ class Model(object):
             if cell_type != "CNN":
                 w = tf.get_variable("w", [n_unit, n_class])
                 b = tf.get_variable("b", [n_class])
-                # self.scores = tf.nn.xw_plus_b(self.output, w, b, name="scores")
                 self.scores = tf.nn.softmax(tf.matmul(self.output, w) + b, name="scores")
                 self.predictions = tf.argmax(self.scores, axis=1, name="predictions")
             else:
@@ -120,16 +119,9 @@ class Model(object):
 
         # CalculateMean cross-entropy loss
         with tf.name_scope("loss"):
-            # losses = tf.nn.softmax_cross_entropy_with_logits(logits=self.scores, labels=self.input_y)
-            # self.loss = tf.reduce_mean(losses, name="Cross-entropy")
-            # self.loss = - tf.reduce_sum(self.scores * tf.log(self.input_y)
-            #                            + (1 - self.scores) * tf.log(1 - self.input_y), name="Cross-entropy")
             if cell_type != "CNN":
                 self.loss = tf.reduce_mean(tf.square(self.input_y - self.scores), name="Square-loss")
             else:
-                # self.loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.scores,
-                #                                                                           labels=self.input_y) +
-                #                            l2_reg_lambda * l2_loss, name="Softmax-cross-entropy")
                 self.loss = tf.reduce_mean(tf.square(self.input_y - self.scores), name="Square-loss")
         print("Loss: Done")
 
@@ -138,26 +130,5 @@ class Model(object):
             correct_predictions = tf.equal(self.predictions, tf.argmax(self.input_y, 1))
             self.accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"), name="accuracy")
         print("Accuracy: Done")
-
-        # Precision
-        with tf.name_scope("Precision"):
-            self.precision = tf.metrics.precision(self.predictions, tf.argmax(self.input_y, 1), name="precision")
-        print("Precision: Done")
-
-        # Recall
-        with tf.name_scope("Recall"):
-            self.recall = tf.metrics.recall(self.predictions, tf.argmax(self.input_y, 1))
-        print("Recall: Done")
-
-        # Confusion matrix
-        with tf.name_scope("Confusion_matrix"):
-            self.confusion_matrix = tf.confusion_matrix(tf.argmax(self.input_y, 1), self.precision,
-                                                        num_classes=n_class, name="confusion_matrix")
-        print("Confusion matrix: Done")
-
-        # F1 score
-        with tf.name_scope("f1_score"):
-            self.f1_score = metrics.f1_score(tf.argmax(self.input_y, 1), self.predictions)
-        print("F1 score: Done")
 
         print("==Network construction has been finished==")
